@@ -5,12 +5,12 @@
 #include <list>
 #include <map>
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cstdint>
 #include <unistd.h>
 #include <fcntl.h>
-#include <string.h>
-#include <inttypes.h>
 
 #include <zlib.h>
 
@@ -39,11 +39,11 @@ int MabiPack::openpack(const std::string &path)
 		::close(fd);
 		return -2;
 	}
-	if (*(uint32_t *)this->_header.magic != *(uint32_t *)"PACK") {
+	if (std::memcmp(this->_header.magic, "PACK", 4)) {
 		::close(fd);
 		return -3;
 	}
-	if (*(uint32_t *)this->_header.pack_revision != *(uint32_t *)"\2\1\0\0") {
+	if (std::memcmp(this->_header.pack_revision, "\2\1\0\0", 4)) {
 		::close(fd);
 		return -4;
 	}

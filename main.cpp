@@ -41,7 +41,7 @@ static void str_split(std::vector<std::string> &out, const std::string &str, cha
 	}
 }
 
-static int mkdir_recursive(const std::string &path, bool ignore_last_elem = false)
+static int mkdir_recursive(const std::string &path, bool ignore_last_elem=false)
 {
 	std::vector<std::string> elems;
 	str_split(elems, path, '/');
