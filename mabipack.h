@@ -44,10 +44,10 @@ public:
 
 	const package_header &header() const { return header_; }
 
-	filelist_t::iterator begin() { return this->files_.begin(); }
-	filelist_t::iterator end() { return this->files_.end(); }
-	filelist_t::const_iterator begin() const { return this->files_.begin(); }
-	filelist_t::const_iterator end() const { return this->files_.end(); }
+	filelist_t::iterator begin() { return files_.begin(); }
+	filelist_t::iterator end() { return files_.end(); }
+	filelist_t::const_iterator begin() const { return files_.begin(); }
+	filelist_t::const_iterator end() const { return files_.end(); }
 
 private:
 	filelist_t::value_type read_fileinfo(int fd);

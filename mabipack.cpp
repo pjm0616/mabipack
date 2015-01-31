@@ -24,7 +24,7 @@ MabiPack::MabiPack()
 
 MabiPack::~MabiPack()
 {
-	this->closepack();
+	closepack();
 }
 
 int MabiPack::openpack(const std::string &path)
@@ -34,29 +34,29 @@ int MabiPack::openpack(const std::string &path)
 		return -1;
 	}
 
-	int nread = ::read(fd, &this->header_, sizeof (this->header_));
-	if (nread != sizeof (this->header_)) {
+	int nread = ::read(fd, &header_, sizeof (header_));
+	if (nread != sizeof (header_)) {
 		::close(fd);
 		return -2;
 	}
-	if (std::memcmp(this->header_.magic, "PACK", 4)) {
+	if (std::memcmp(header_.magic, "PACK", 4)) {
 		::close(fd);
 		return -3;
 	}
-	if (std::memcmp(this->header_.pack_revision, "\2\1\0\0", 4)) {
+	if (std::memcmp(header_.pack_revision, "\2\1\0\0", 4)) {
 		::close(fd);
 		return -4;
 	}
-	this->header_.mountpoint[sizeof(this->header_.mountpoint) - 1] = '\0';
-	this->fd_ = fd;
+	header_.mountpoint[sizeof(header_.mountpoint) - 1] = '\0';
+	fd_ = fd;
 
-	for (unsigned int i = 0; i < this->header_.filecnt; i++) {
-		filelist_t::value_type entry = this->read_fileinfo(fd);
+	for (unsigned int i = 0; i < header_.filecnt; i++) {
+		filelist_t::value_type entry = read_fileinfo(fd);
 		if (entry.first.empty()) {
-			this->closepack();
+			closepack();
 			return -5;
 		}
-		this->files_.insert(entry);
+		files_.insert(entry);
 	}
 
 	return 0;
@@ -110,9 +110,9 @@ MabiPack::filelist_t::value_type MabiPack::read_fileinfo(int fd)
 
 int MabiPack::closepack()
 {
-	::close(this->fd_);
-	this->fd_ = -1;
-	this->files_.clear();
+	::close(fd_);
+	fd_ = -1;
+	files_.clear();
 	return 0;
 }
 
@@ -146,22 +146,22 @@ char *MabiPack::readfile(const MabiPack::file_info &entry)
 		return nullptr;
 	}
 
-	uint32_t data_section_off = sizeof (this->header_) + this->header_.fileinfo_size;
-	::lseek(this->fd_, data_section_off + entry.offset, SEEK_SET);
+	uint32_t data_section_off = sizeof (header_) + header_.fileinfo_size;
+	::lseek(fd_, data_section_off + entry.offset, SEEK_SET);
 	char *compressed = new char[entry.size_compressed];
-	int nread = ::read(this->fd_, compressed, entry.size_compressed);
+	int nread = ::read(fd_, compressed, entry.size_compressed);
 	if (nread != (int)entry.size_compressed) {
 		delete[] compressed;
 		return nullptr;
 	}
 
-	char *data = this->decode_file_contents(entry, compressed);
+	char *data = decode_file_contents(entry, compressed);
 	delete[] compressed;
 	return data;
 }
 
 char *MabiPack::readfile(const std::string &path)
 {
-	return this->readfile(this->files_[path]);
+	return readfile(files_[path]);
 }
 
