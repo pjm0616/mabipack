@@ -13,12 +13,28 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <time.h>
 
 #include "mabipack.h"
 #include "wildcard.h"
 
 
 // utilities
+time_t filetime_to_unix_ts(uint64_t filetime, int utc_offset=0)
+{
+     return filetime / 10000000 - 11644473600 - utc_offset;
+}
+
+const char *format_filetime(uint64_t filetime)
+{
+	// Since Mabinogi is being developed in Korea we assume timestamps are in KST(UTC+9).
+	int utcoff = 32400; // UTC+9
+	time_t ts = filetime_to_unix_ts(filetime, utcoff);
+	static char buf[512];
+	strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S %Z (Assuming KST)", localtime(&ts));
+	return buf;
+}
+
 static bool check_patterns(const std::vector<const char *> &patterns, const std::string &name)
 {
 	if (patterns.empty()) {
@@ -123,6 +139,11 @@ static int do_extract(MabiPack &pack, const std::vector<const char *> &patterns)
 
 static int do_list(MabiPack &pack, const std::vector<const char *> &patterns)
 {
+	const MabiPack::package_header &hdr = pack.header();
+	printf("Version number: %d\n", hdr.version);
+	printf("Creation date: %s\n", format_filetime(hdr.time1));
+	printf("Mountpoint: %s\n", hdr.mountpoint);
+	printf("====================\n");
 	uint32_t cnt = 0;
 	uint64_t total_size = 0;
 	for (auto &entry : pack) {

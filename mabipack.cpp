@@ -47,6 +47,7 @@ int MabiPack::openpack(const std::string &path)
 		::close(fd);
 		return -4;
 	}
+	this->header_.mountpoint[sizeof(this->header_.mountpoint) - 1] = '\0';
 	this->fd_ = fd;
 
 	for (unsigned int i = 0; i < this->header_.filecnt; i++) {

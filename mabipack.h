@@ -42,6 +42,8 @@ public:
 	char *readfile(const std::string &path);
 	char *readfile(const file_info &entry);
 
+	const package_header &header() const { return header_; }
+
 	filelist_t::iterator begin() { return this->files_.begin(); }
 	filelist_t::iterator end() { return this->files_.end(); }
 	filelist_t::const_iterator begin() const { return this->files_.begin(); }
