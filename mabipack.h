@@ -42,18 +42,18 @@ public:
 	char *readfile(const std::string &path);
 	char *readfile(const file_info &entry);
 
-	filelist_t::iterator begin() { return this->_files.begin(); }
-	filelist_t::iterator end() { return this->_files.end(); }
-	filelist_t::const_iterator begin() const { return this->_files.begin(); }
-	filelist_t::const_iterator end() const { return this->_files.end(); }
+	filelist_t::iterator begin() { return this->files_.begin(); }
+	filelist_t::iterator end() { return this->files_.end(); }
+	filelist_t::const_iterator begin() const { return this->files_.begin(); }
+	filelist_t::const_iterator end() const { return this->files_.end(); }
 
 private:
-	filelist_t::value_type _read_fileinfo(int fd);
-	char *_decode_file_contents(const file_info &entry, char *compressed);
+	filelist_t::value_type read_fileinfo(int fd);
+	char *decode_file_contents(const file_info &entry, char *compressed);
 
 private:
-	int _fd;
-	package_header _header;
-	filelist_t _files;
+	int fd_;
+	package_header header_;
+	filelist_t files_;
 };
 
