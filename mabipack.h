@@ -10,12 +10,12 @@ public:
 		char magic[4];
 		char pack_revision[4];
 		uint32_t version;
-		uint32_t sum;
+		uint32_t filecnt0;
 		uint64_t time1, time2;
-		char path[480];
+		char mountpoint[480];
 		uint32_t filecnt;
 		uint32_t fileinfo_size;
-		uint32_t blank_size;
+		uint32_t padding_size;
 		uint32_t data_section_size;
 		char padding[16];
 	};
