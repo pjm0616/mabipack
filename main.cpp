@@ -22,7 +22,7 @@
 // utilities
 time_t filetime_to_unix_ts(uint64_t filetime, int utc_offset=0)
 {
-     return filetime / 10000000 - 11644473600 - utc_offset;
+	return filetime / 10000000 - 11644473600 - utc_offset;
 }
 
 const char *format_filetime(uint64_t filetime)
