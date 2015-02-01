@@ -20,15 +20,14 @@
 
 
 // utilities
-time_t filetime_to_unix_ts(uint64_t filetime, int utc_offset=0)
+time_t filetime_to_unix_ts(uint64_t filetime, int utc_offset=MABIPACK_DEFAULT_TIMEZONE)
 {
 	return filetime / 10000000 - 11644473600 - utc_offset;
 }
 
 const char *format_filetime(uint64_t filetime)
 {
-	// Since Mabinogi is being developed in Korea we assume timestamps are in KST(UTC+9).
-	int utcoff = 32400; // UTC+9
+	int utcoff = MABIPACK_DEFAULT_TIMEZONE;
 	time_t ts = filetime_to_unix_ts(filetime, utcoff);
 	static char buf[512];
 	strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S %Z (Assuming KST)", localtime(&ts));
@@ -80,7 +79,7 @@ static int mkdir_recursive(const std::string &path, bool ignore_last_elem=false)
 	return 0;
 }
 
-static int extract_file(MabiPack &pack, const std::string &name, const MabiPack::file_info &entry)
+static int extract_file(MabiPack &pack, const std::string &name, const file_info &entry)
 {
 	int ret = mkdir_recursive(name, true);
 	if (ret < 0) {
@@ -139,7 +138,7 @@ static int do_extract(MabiPack &pack, const std::vector<const char *> &patterns)
 
 static int do_list(MabiPack &pack, const std::vector<const char *> &patterns)
 {
-	const MabiPack::package_header &hdr = pack.header();
+	const package_header &hdr = pack.header();
 	printf("Version number: %d\n", hdr.version);
 	printf("Creation date: %s\n", format_filetime(hdr.time1));
 	printf("Mountpoint: %s\n", hdr.mountpoint);

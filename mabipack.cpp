@@ -116,7 +116,7 @@ int MabiPack::closepack()
 	return 0;
 }
 
-char *MabiPack::decode_file_contents(const MabiPack::file_info &entry, char *compressed)
+char *MabiPack::decode_file_contents(const file_info &entry, char *compressed)
 {
 	uint32_t seed = (entry.seed << 7) ^ 0xa9c36de1;
 	mt19937ar mt(seed);
@@ -136,7 +136,7 @@ char *MabiPack::decode_file_contents(const MabiPack::file_info &entry, char *com
 	return data;
 }
 
-char *MabiPack::readfile(const MabiPack::file_info &entry)
+char *MabiPack::readfile(const file_info &entry)
 {
 	if (entry.size_compressed == 0) {
 		return nullptr;
