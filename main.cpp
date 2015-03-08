@@ -210,7 +210,7 @@ static int collect_files(std::vector<std::string> &result, const std::string &pa
 		return -1;
 	}
 
-	if (S_ISREG(sb.st_mode) || S_ISLNK(sb.st_mode)) {
+	if (S_ISREG(sb.st_mode)) {
 		result.push_back(path);
 	} else if (S_ISDIR(sb.st_mode)) {
 		DIR *dp = opendir(path.c_str());
