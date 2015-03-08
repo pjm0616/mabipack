@@ -5,6 +5,9 @@
 
 // Since Mabinogi is being developed in Korea we assume timestamps are in KST(UTC+9).
 static const int MABIPACK_DEFAULT_TIMEZONE = 32400; // UTC+9
+static const int MABIPACK_MAX_FILENAME_STORAGE = 256;
+// Subtract the size for filename_encoding_method(\x05), filename_length and null_terminator.
+static const int MABIPACK_MAX_FILENAME = MABIPACK_MAX_FILENAME_STORAGE - (1 + 4 + 1);
 
 struct package_header
 {
@@ -61,5 +64,46 @@ private:
 	int fd_;
 	package_header header_;
 	filelist_t files_;
+};
+
+class MabiPackWriter
+{
+public:
+	MabiPackWriter();
+	~MabiPackWriter();
+
+	int open(const std::string &path, uint32_t version, int filecnt, const char *mountpoint="data\\");
+	// Returns <0 on error and errno is set appropriately.
+	int addfile(const std::string &path);
+	// Returns <0 on error and errno is set appropriately.
+	int commit();
+	void discard();
+
+private:
+	int write_filename(const char *name);
+
+private:
+	int fd_;
+	int next_idx_;
+	package_header header_;
+	std::vector<std::pair<std::string, file_info>> files_;
+	uint64_t creation_filetime_;
+};
+
+// Utility class. todo: move this to somewhere else.
+class PreserveErrno
+{
+public:
+	PreserveErrno()
+		: orig_errno_(errno)
+	{
+	}
+	~PreserveErrno()
+	{
+		errno = orig_errno_;
+	}
+
+private:
+	int orig_errno_;
 };
 
