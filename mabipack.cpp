@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
+#include <cassert>
 #include <unistd.h>
 #include <fcntl.h>
 
@@ -17,8 +18,13 @@
 #include "mabipack.h"
 #include "mt19937ar.h"
 
+#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+#error This program only works under little endian cpus.
+#endif
+
 
 MabiPack::MabiPack()
+	: fd_(-1)
 {
 }
 
@@ -29,6 +35,8 @@ MabiPack::~MabiPack()
 
 int MabiPack::openpack(const std::string &path)
 {
+	assert(fd_ < 0);
+
 	int fd = ::open(path.c_str(), O_RDONLY);
 	if (fd < 0) {
 		return -1;
@@ -64,18 +72,25 @@ int MabiPack::openpack(const std::string &path)
 
 MabiPack::filelist_t::value_type MabiPack::read_fileinfo(int fd)
 {
+	assert(fd_ >= 0);
+
 	int nread;
 
 	// read filename length
 	char nametype;
 	uint32_t namelen;
 	nread = ::read(fd, &nametype, 1);
-	if (nametype < 4) {
+	if (nread != 1) {
+		return filelist_t::value_type();
+	} else if (nametype < 4) {
 		namelen = (0x10 * (nametype + 1)) - 1;
 	} else if (nametype == 4) {
 		namelen = 0x60 - 1;
 	} else if (nametype == 5) {
-		::read(fd, &namelen, 4);
+		nread = ::read(fd, &namelen, 4);
+		if (nread != 4) {
+			return filelist_t::value_type();
+		}
 	} else {
 		return filelist_t::value_type();
 	}
@@ -110,9 +125,11 @@ MabiPack::filelist_t::value_type MabiPack::read_fileinfo(int fd)
 
 int MabiPack::closepack()
 {
-	::close(fd_);
-	fd_ = -1;
-	files_.clear();
+	if (fd_ >= 0) {
+		::close(fd_);
+		fd_ = -1;
+		files_.clear();
+	}
 	return 0;
 }
 
@@ -138,6 +155,8 @@ char *MabiPack::decode_file_contents(const file_info &entry, char *compressed)
 
 char *MabiPack::readfile(const file_info &entry)
 {
+	assert(fd_ >= 0);
+
 	if (entry.size_compressed == 0) {
 		return nullptr;
 	}
@@ -147,7 +166,10 @@ char *MabiPack::readfile(const file_info &entry)
 	}
 
 	uint32_t data_section_off = sizeof (header_) + header_.fileinfo_size;
-	::lseek(fd_, data_section_off + entry.offset, SEEK_SET);
+	int ret = ::lseek(fd_, data_section_off + entry.offset, SEEK_SET);
+	if (ret < 0) {
+		return nullptr;
+	}
 	char *compressed = new char[entry.size_compressed];
 	int nread = ::read(fd_, compressed, entry.size_compressed);
 	if (nread != (int)entry.size_compressed) {
