@@ -5,6 +5,7 @@
 #include <list>
 #include <vector>
 #include <map>
+#include <set>
 #include <sstream>
 
 #include <string.h>
@@ -201,7 +202,7 @@ static int do_list()
 }
 
 // Note: trailing slashes must not be present in path argument.
-static int collect_files(std::vector<std::string> &result, const std::string &path)
+static int collect_files(std::list<std::string> &result, std::set<std::string> &result_set, const std::string &path)
 {
 	struct stat sb;
 	int ret = ::stat(path.c_str(), &sb);
@@ -211,7 +212,11 @@ static int collect_files(std::vector<std::string> &result, const std::string &pa
 	}
 
 	if (S_ISREG(sb.st_mode)) {
+		if (result_set.count(path)) {
+			return 0;
+		}
 		result.push_back(path);
+		result_set.insert(path);
 	} else if (S_ISDIR(sb.st_mode)) {
 		DIR *dp = opendir(path.c_str());
 		if (!dp) {
@@ -225,7 +230,7 @@ static int collect_files(std::vector<std::string> &result, const std::string &pa
 				continue;
 			}
 
-			ret = collect_files(result, path + "/" + entry->d_name);
+			ret = collect_files(result, result_set, path + "/" + entry->d_name);
 			if (ret < 0) {
 				{
 					PreserveErrno ep;
@@ -252,7 +257,8 @@ static int collect_files(std::vector<std::string> &result, const std::string &pa
 }
 static int do_create()
 {
-	std::vector<std::string> files;
+	std::list<std::string> files;
+	std::set<std::string> files_set;
 	for (const char *name : g_arglist) {
 		// Get the length of `name' without trailing slashes.
 		int i = strlen(name) - 1;
@@ -265,7 +271,7 @@ static int do_create()
 			return EXIT_FAILURE;
 		}
 		std::string sname(name, i);
-		int ret = collect_files(files, sname);
+		int ret = collect_files(files, files_set, sname);
 		if (ret < 0) {
 			fprintf(stderr, "ERROR: Failed to collect filelist(%d): %s: %s\n", ret, sname.c_str(), strerror(errno));
 			return EXIT_FAILURE;
