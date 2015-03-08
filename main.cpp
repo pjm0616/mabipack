@@ -7,13 +7,16 @@
 #include <map>
 #include <sstream>
 
+#include <string.h>
 #include <inttypes.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <sys/types.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <dirent.h>
 
 #include "mabipack.h"
 #include "wildcard.h"
@@ -124,6 +127,9 @@ static const char *g_packfile;
 static std::vector<const char *> g_arglist;
 // extract only
 static const char *g_extract_dir = "./";
+// create only
+static int g_pack_version = 0;
+static const char *g_pack_mountpoint = "data\\";
 
 // verbs
 typedef int (*mabipack_verb_t)();
@@ -190,7 +196,112 @@ static int do_list()
 		}
 	}
 	printf("Total %d file(s), %.2f MiB\n", cnt, total_size / 1048576.0f);
+
+	return EXIT_SUCCESS;
+}
+
+// Note: trailing slashes must not be present in path argument.
+static int collect_files(std::vector<std::string> &result, const std::string &path)
+{
+	struct stat sb;
+	int ret = ::stat(path.c_str(), &sb);
+	if (ret < 0) {
+		fprintf(stderr, "ERROR: Cannot stat %s: %s\n", path.c_str(), strerror(errno));
+		return -1;
+	}
+
+	if (S_ISREG(sb.st_mode) || S_ISLNK(sb.st_mode)) {
+		result.push_back(path);
+	} else if (S_ISDIR(sb.st_mode)) {
+		DIR *dp = opendir(path.c_str());
+		if (!dp) {
+			return -2;
+		}
+
+		struct dirent *entry;
+		errno = 0;
+		while ((entry = readdir(dp)) != NULL) {
+			if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) {
+				continue;
+			}
+
+			ret = collect_files(result, path + "/" + entry->d_name);
+			if (ret < 0) {
+				{
+					PreserveErrno ep;
+					closedir(dp);
+				}
+				return -3;
+			}
+
+			errno = 0;
+		}
+		{
+			PreserveErrno ep;
+			closedir(dp);
+		}
+		if (errno != 0) {
+			return -4;
+		}
+	} else {
+		errno = ESOCKTNOSUPPORT;
+		return -5;
+	}
+
 	return 0;
+}
+static int do_create()
+{
+	std::vector<std::string> files;
+	for (const char *name : g_arglist) {
+		// Get the length of `name' without trailing slashes.
+		int i = strlen(name) - 1;
+		while (i >= 0 && name[i] == '/') {
+			i--;
+		}
+		i++;
+		if (i == 0) {
+			fprintf(stderr, "ERROR: Empty filename in argument list\n");
+			return EXIT_FAILURE;
+		}
+		std::string sname(name, i);
+		int ret = collect_files(files, sname);
+		if (ret < 0) {
+			fprintf(stderr, "ERROR: Failed to collect filelist(%d): %s: %s\n", ret, sname.c_str(), strerror(errno));
+			return EXIT_FAILURE;
+		}
+	}
+
+	fprintf(stdout, "Creating package %s\n", g_packfile);
+	fprintf(stdout, "Pack version: %d\n", g_pack_version);
+	fprintf(stdout, "Mountpoint: %s\n", g_pack_mountpoint);
+	fprintf(stdout, "Number of files: %lu\n", files.size());
+
+	MabiPackWriter pack_writer;
+	int ret = pack_writer.open(g_packfile, g_pack_version, files.size(), g_pack_mountpoint);
+	if (ret != 0) {
+		fprintf(stderr, "ERROR: Cannot open packfile: %d\n", ret);
+		return EXIT_FAILURE;
+	}
+
+	for (const std::string &path : files) {
+		fprintf(stdout, "Adding file %s\n", path.c_str());
+		ret = pack_writer.addfile(path);
+		if (ret < 0) {
+			fprintf(stderr, "ERROR: Cannot add file(%d): %s: %s\n", ret, path.c_str(), strerror(errno));
+			pack_writer.discard();
+			return EXIT_FAILURE;
+		}
+	}
+
+	ret = pack_writer.commit();
+	if (ret < 0) {
+		fprintf(stderr, "ERROR: Cannot write package header(%d): %s\n", ret, strerror(errno));
+		pack_writer.discard();
+		return EXIT_FAILURE;
+	}
+
+	return EXIT_SUCCESS;
 }
 
 static int do_usage()
@@ -200,7 +311,10 @@ static int do_usage()
 	fprintf(stderr, "\t-h - help message\n");
 	fprintf(stderr, "\t-l - list files in the package\n");
 	fprintf(stderr, "\t-e - extract files in the package (default)\n");
-	fprintf(stderr, "\t-d - set output directory\n");
+	fprintf(stderr, "\t-c - create a new package\n");
+	fprintf(stderr, "\t-d - set output directory (extract only)\n");
+	fprintf(stderr, "\t-v - set package version (create only)\n");
+	fprintf(stderr, "\t-m - set package mountpoint (create only)\n");
 
 	return EXIT_SUCCESS;
 }
@@ -212,7 +326,7 @@ int main(int argc, char *argv[])
 	g_program_name = argv[0];
 	mabipack_verb_t func = do_extract;
 	int opt;
-	while ((opt = getopt(argc, argv, "hled:")) != -1) {
+	while ((opt = getopt(argc, argv, "hlecd:v:m:")) != -1) {
 		switch (opt) {
 		case 'h':
 			do_usage();
@@ -226,8 +340,20 @@ int main(int argc, char *argv[])
 			func = do_extract;
 			break;
 
+		case 'c':
+			func = do_create;
+			break;
+
 		case 'd':
 			g_extract_dir = optarg;
+			break;
+
+		case 'v':
+			g_pack_version = atoi(optarg);
+			break;
+
+		case 'm':
+			g_pack_mountpoint = optarg;
 			break;
 		}
 	}
