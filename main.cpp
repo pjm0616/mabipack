@@ -118,26 +118,63 @@ static int extract_file(MabiPack &pack, const std::string &name, const file_info
 	return 0;
 }
 
-// verbs
-typedef int (*mabipack_verb_t)(MabiPack &pack, const std::vector<const char *> &patterns);
+// Program options
+static const char *g_program_name;
+static const char *g_packfile;
+static std::vector<const char *> g_arglist;
+// extract only
+static const char *g_extract_dir = "./";
 
-static int do_extract(MabiPack &pack, const std::vector<const char *> &patterns)
+// verbs
+typedef int (*mabipack_verb_t)();
+
+static int do_extract()
 {
+	MabiPack pack;
+	int ret = pack.openpack(g_packfile);
+	if (ret != 0) {
+		fprintf(stderr, "ERROR: Cannot open packfile: %d\n", ret);
+		return EXIT_FAILURE;
+	}
+
+	ret = chdir(g_extract_dir);
+	if (ret != 0) {
+		ret = mkdir(g_extract_dir, 0755);
+		if (ret != 0) {
+			perror("mkdir");
+			return EXIT_FAILURE;
+		}
+
+		ret = chdir(g_extract_dir);
+		if (ret != 0) {
+			perror("chdir");
+			return EXIT_FAILURE;
+		}
+	}
+
 	for (auto &entry : pack) {
-		if (check_patterns(patterns, entry.first)) {
+		if (check_patterns(g_arglist, entry.first)) {
 			printf("%s\n", entry.first.c_str());
 			int ret = extract_file(pack, entry.first, entry.second);
 			if (ret < 0) {
 				fprintf(stderr, "Error extracting the package. aborting...\n");
-				return -1;
+				return EXIT_FAILURE;
 			}
 		}
 	}
-	return 0;
+
+	return EXIT_SUCCESS;
 }
 
-static int do_list(MabiPack &pack, const std::vector<const char *> &patterns)
+static int do_list()
 {
+	MabiPack pack;
+	int ret = pack.openpack(g_packfile);
+	if (ret != 0) {
+		fprintf(stderr, "ERROR: Cannot open packfile: %d\n", ret);
+		return EXIT_FAILURE;
+	}
+
 	const package_header &hdr = pack.header();
 	printf("Version number: %d\n", hdr.version);
 	printf("Creation date: %s\n", format_filetime(hdr.time1));
@@ -146,7 +183,7 @@ static int do_list(MabiPack &pack, const std::vector<const char *> &patterns)
 	uint32_t cnt = 0;
 	uint64_t total_size = 0;
 	for (auto &entry : pack) {
-		if (check_patterns(patterns, entry.first)) {
+		if (check_patterns(g_arglist, entry.first)) {
 			printf("%.2f KiB\t%s\n", entry.second.size_orig / 1024.0f, entry.first.c_str());
 			cnt += 1;
 			total_size += entry.second.size_orig;
@@ -156,28 +193,29 @@ static int do_list(MabiPack &pack, const std::vector<const char *> &patterns)
 	return 0;
 }
 
-static int do_usage(char *argv[])
+static int do_usage()
 {
-	fprintf(stderr, "Usage: %s <options> <packfile> [patterns...]\n", argv[0]);
+	fprintf(stderr, "Usage: %s <options> <packfile> [patterns...]\n", g_program_name);
 	fprintf(stderr, "Options:\n");
 	fprintf(stderr, "\t-h - help message\n");
 	fprintf(stderr, "\t-l - list files in the package\n");
 	fprintf(stderr, "\t-e - extract files in the package (default)\n");
 	fprintf(stderr, "\t-d - set output directory\n");
-	return 0;
+
+	return EXIT_SUCCESS;
 }
 
 // main
 int main(int argc, char *argv[])
 {
 	// parse args
+	g_program_name = argv[0];
 	mabipack_verb_t func = do_extract;
 	int opt;
-	const char *extract_dir = "./";
 	while ((opt = getopt(argc, argv, "hled:")) != -1) {
 		switch (opt) {
 		case 'h':
-			do_usage(argv);
+			do_usage();
 			exit(EXIT_SUCCESS);
 
 		case 'l':
@@ -189,46 +227,21 @@ int main(int argc, char *argv[])
 			break;
 
 		case 'd':
-			extract_dir = optarg;
+			g_extract_dir = optarg;
 			break;
 		}
 	}
 	if (optind >= argc) {
 		fprintf(stderr, "Error: Expected packfile argument after options.\n");
-		do_usage(argv);
+		do_usage();
 		exit(EXIT_FAILURE);
 	}
 
-	const char *packfile = argv[optind++];
-	std::vector<const char *> patterns;
+	g_packfile = argv[optind++];
 	for (int i = optind; i < argc; i++) {
-		patterns.push_back(argv[i]);
+		g_arglist.push_back(argv[i]);
 	}
 
-	MabiPack pack;
-	int ret = pack.openpack(packfile);
-	if (ret != 0) {
-		fprintf(stderr, "ERROR: Cannot open packfile: %d\n", ret);
-		exit(EXIT_FAILURE);
-	}
-
-	if (func == do_extract) {
-		ret = chdir(extract_dir);
-		if (ret != 0) {
-			ret = mkdir(extract_dir, 0755);
-			if (ret != 0) {
-				perror("mkdir");
-				exit(EXIT_FAILURE);
-			}
-			ret = chdir(extract_dir);
-			if (ret != 0) {
-				perror("chdir");
-				exit(EXIT_FAILURE);
-			}
-		}
-	}
-
-	ret = func(pack, patterns);
-	return ret;
+	return func();
 }
 
