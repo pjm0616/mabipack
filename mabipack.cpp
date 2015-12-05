@@ -177,7 +177,7 @@ char *MabiPack::readfile(const file_info &entry)
 	}
 
 	uint32_t data_section_off = sizeof (header_) + header_.fileinfo_size;
-	int ret = ::lseek(fd_, data_section_off + entry.offset, SEEK_SET);
+	off_t ret = ::lseek(fd_, data_section_off + entry.offset, SEEK_SET);
 	if (ret < 0) {
 		return nullptr;
 	}
@@ -238,7 +238,7 @@ int MabiPackWriter::open(const std::string &path, uint32_t version, int filecnt,
 	header_.padding_size = 1024 - (fileinfo_pure_size % 1024);
 	header_.fileinfo_size = fileinfo_pure_size + header_.padding_size;
 
-	int ret = ::lseek(fd, sizeof(package_header) + header_.fileinfo_size, SEEK_SET);
+	off_t ret = ::lseek(fd, sizeof(package_header) + header_.fileinfo_size, SEEK_SET);
 	if (ret < 0) {
 		close(fd);
 		return -3;
@@ -252,7 +252,8 @@ int MabiPackWriter::commit()
 {
 	assert(fd_ >= 0);
 
-	int ret;
+	ssize_t ret;
+	off_t off;
 
 	off_t size = ::lseek(fd_, 0, SEEK_CUR);
 	if (size < 0) {
@@ -260,8 +261,8 @@ int MabiPackWriter::commit()
 	}
 
 	// Write file metadata
-	ret = ::lseek(fd_, sizeof(package_header), SEEK_SET);
-	if (ret < 0) {
+	off = ::lseek(fd_, sizeof(package_header), SEEK_SET);
+	if (off < 0) {
 		return -2;
 	}
 	for (const std::pair<std::string, file_info> &entry : files_) {
@@ -274,12 +275,12 @@ int MabiPackWriter::commit()
 			return -4;
 		}
 	}
-	ret = ::lseek(fd_, 0, SEEK_CUR);
-	if (ret < 0 || (unsigned int)ret >= sizeof(package_header) + header_.fileinfo_size) {
+	off = ::lseek(fd_, 0, SEEK_CUR);
+	if (off < 0 || off >= (off_t)(sizeof(package_header) + header_.fileinfo_size)) {
 		return -5;
 	}
 
-	ret = ::lseek(fd_, 0, SEEK_SET);
+	off = ::lseek(fd_, 0, SEEK_SET);
 	header_.data_section_size = size - sizeof(package_header) + header_.fileinfo_size;
 	ret = ::write(fd_, &header_, sizeof(header_));
 	if (ret != sizeof(header_)) {
